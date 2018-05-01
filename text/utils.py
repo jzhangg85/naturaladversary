@@ -106,7 +106,6 @@ class Corpus(object):
                 else:
                     words = line[:-1].split(" ")
                 for word in words:
-                    word = word.encode('utf-8')
                     self.dictionary.add_word(word)
 
         # prune the vocabulary
@@ -250,7 +249,7 @@ def get_ppl(lm, sentences):
 
 class SNLIDataset(data.Dataset):
 
-    def __init__(self, path="/home/ddua/data/snli/snli_1.0", train=True, \
+    def __init__(self, path, train=True, \
                  vocab_size= 11000, maxlen = 10, reset_vocab=None):
         self.train = train
         self.train_data=[]
@@ -273,7 +272,7 @@ class SNLIDataset(data.Dataset):
             self.make_vocab()
             
         if os.path.exists(self.root+"/sent_ids.pkl"):
-            self.sentence_ids = pkl.load(open(self.root+"/sent_ids.pkl",'r'))
+            self.sentence_ids = pkl.load(open(self.root+"/sent_ids.pkl",'rb'))
         else:
             print("Sentence IDs not found!!")
             
@@ -383,7 +382,7 @@ class SNLIDataset(data.Dataset):
         return lines
 
 
-def load_embeddings(root = '../../natural-adversary-data/data/classifier/'):
+def load_embeddings(root = '../../data/classifier/'):
     vocab_path=root+'vocab.pkl'
     file_path=root+'embeddings'
     vocab = pkl.load(open(vocab_path, 'rb'))

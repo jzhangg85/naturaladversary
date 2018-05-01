@@ -25,8 +25,12 @@ parser.add_argument('--classifier_path', type=str, required=True,
                     help='location of the classifier files')
 parser.add_argument('--kenlm_path', type=str, default='/home/ddua/kenlm',
                     help='path to kenlm directory')
-parser.add_argument('--outf', type=str, default='example',
+parser.add_argument('--outf', type=str, default='rk_new',
                     help='output directory name')
+
+#RK: Added this argument for the snli path
+parser.add_argument('--snli_path',type = str,required=True, help = 'location of the SNLI stuff')
+
 
 # Data Processing Arguments
 parser.add_argument('--vocab_size', type=int, default=11000,
@@ -216,7 +220,9 @@ eval_batch_size = 10
 if not args.convolution_enc:
     args.packed_rep = True
 train_data = batchify(corpus.train, args.batch_size, args.maxlen, packed_rep=args.packed_rep, shuffle=True)
-corpus_test = SNLIDataset(train=False, vocab_size=args.vocab_size+4, reset_vocab=corpus.dictionary.word2idx)
+eval_batch_size = 10
+test_data2 = batchify(corpus.test, eval_batch_size, args.maxlen, shuffle=False)
+corpus_test = SNLIDataset(path = args.snli_path, train=True, vocab_size=args.vocab_size+4, reset_vocab=corpus.dictionary.word2idx)
 testloader = torch.utils.data.DataLoader(corpus_test, batch_size=10, collate_fn=collate_snli, shuffle=False)
 test_data = iter(testloader)
 
@@ -439,8 +445,9 @@ def evaluate_autoencoder(data_source, epoch):
     bcnt = 0
     for i, batch in enumerate(data_source):
         source, target, lengths = batch
-        source = to_gpu(args.cuda, Variable(source, volatile=True))
-        target = to_gpu(args.cuda, Variable(target, volatile=True))
+        source = to_gpu(args.cuda, Variable(source,volatile = True))
+        target = to_gpu(args.cuda, Variable(target,volatile = True))
+        
 
         mask = target.gt(0)
         masked_target = target.masked_select(mask)
@@ -469,11 +476,11 @@ def evaluate_autoencoder(data_source, epoch):
             target = target.view(output.size(0), -1).data.cpu().numpy()
             for t, idx in zip(target, max_indices):
                 # real sentence
-                chars = " ".join([corpus.dictionary.idx2word[x] for x in t])
+                chars = " ".join([str(corpus.dictionary.idx2word[x]) for x in t])
                 f.write(chars)
                 f.write("\n")
                 # autoencoder output sentence
-                chars = " ".join([corpus.dictionary.idx2word[x] for x in idx])
+                chars = " ".join([str(corpus.dictionary.idx2word[x]) for x in idx])
                 f.write(chars)
                 f.write("\n\n")
 
@@ -891,7 +898,7 @@ for epoch in range(start_epoch, args.epochs+1):
     niter_global = 1
     # loop through all batches in training data
     while niter < len(train_data):
-
+    
         # train autoencoder ----------------------------
         for i in range(args.niters_ae):
             if args.update_base:
@@ -976,6 +983,7 @@ for epoch in range(start_epoch, args.epochs+1):
                     f.write('[%d/%d][%d/%d] Loss_I: %.8f \n'
                           % (epoch, args.epochs, niter, len(train_data), errI.data[0]))
 
+        #break #for debugging
     # end of epoch ----------------------------
     # evaluation
     
@@ -986,7 +994,7 @@ for epoch in range(start_epoch, args.epochs+1):
     save_model(epoch)
 
     if ((not args.load_pretrained) and (not args.reload_exp)):
-        test_loss, accuracy = evaluate_autoencoder(test_data, epoch)
+        test_loss, accuracy = evaluate_autoencoder(test_data2, epoch)
         print('-' * 89)
         print('| end of epoch {:3d} | time: {:5.2f}s | test loss {:5.2f} | '
               'test ppl {:5.2f} | acc {:3.3f}'.
@@ -1002,7 +1010,7 @@ for epoch in range(start_epoch, args.epochs+1):
                            test_loss, math.exp(test_loss), accuracy))
             f.write('-' * 89)
             f.write('\n')
-
+        evaluate_inverter(test_data2,epoch)
         evaluate_generator(fixed_noise, "end_of_epoch_{}".format(epoch))
         if not args.no_earlystopping and epoch >= args.min_epochs:
             ppl = train_lm(eval_path=os.path.join(args.data_path, "test.txt"),

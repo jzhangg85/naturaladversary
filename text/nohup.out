@@ -627,3 +627,21 @@ Saving models
 [3/15][9099/13866] Loss_D: 0.00032757 (Loss_D_real: -0.00173050 Loss_D_fake: -0.00140293) Loss_G: -0.00126386 Loss_I: 1.04031634
 [3/15][9199/13866] Loss_D: 0.00082563 (Loss_D_real: -0.00172503 Loss_D_fake: -0.00089941) Loss_G: -0.00149656 Loss_I: 0.87350279
 | epoch   3 |  9200/13866 batches | ms/batch 2182.58 | loss  1.16 | ppl     3.18 | acc     0.82
+[3/15][9299/13866] Loss_D: 0.00070584 (Loss_D_real: -0.00197487 Loss_D_fake: -0.00126903) Loss_G: -0.00071541 Loss_I: 0.92415661
+[3/15][9399/13866] Loss_D: 0.00082415 (Loss_D_real: -0.00204205 Loss_D_fake: -0.00121790) Loss_G: -0.00126157 Loss_I: 0.80687517
+| epoch   3 |  9400/13866 batches | ms/batch 2230.62 | loss  1.12 | ppl     3.08 | acc     0.83
+[3/15][9499/13866] Loss_D: 0.00082131 (Loss_D_real: -0.00180056 Loss_D_fake: -0.00097925) Loss_G: -0.00127728 Loss_I: 1.24299085
+[3/15][9599/13866] Loss_D: 0.00102823 (Loss_D_real: -0.00238164 Loss_D_fake: -0.00135341) Loss_G: -0.00085106 Loss_I: 1.07325649
+| epoch   3 |  9600/13866 batches | ms/batch 2193.42 | loss  1.14 | ppl     3.12 | acc     0.80
+[3/15][9699/13866] Loss_D: 0.00072164 (Loss_D_real: -0.00174719 Loss_D_fake: -0.00102556) Loss_G: -0.00054754 Loss_I: 0.84292006
+[3/15][9799/13866] Loss_D: 0.00067551 (Loss_D_real: -0.00164299 Loss_D_fake: -0.00096748) Loss_G: -0.00097540 Loss_I: 0.99124527
+| epoch   3 |  9800/13866 batches | ms/batch 2142.01 | loss  1.13 | ppl     3.09 | acc     0.81
+[3/15][9899/13866] Loss_D: 0.00057778 (Loss_D_real: -0.00199018 Loss_D_fake: -0.00141240) Loss_G: -0.00116908 Loss_I: 0.97850978
+[3/15][9999/13866] Loss_D: 0.00053300 (Loss_D_real: -0.00196203 Loss_D_fake: -0.00142903) Loss_G: -0.00126646 Loss_I: 0.92677820
+| epoch   3 | 10000/13866 batches | ms/batch 2136.21 | loss  1.13 | ppl     3.10 | acc     0.81
+[3/15][10099/13866] Loss_D: 0.00109820 (Loss_D_real: -0.00201668 Loss_D_fake: -0.00091848) Loss_G: -0.00123885 Loss_I: 1.08503664
+[3/15][10199/13866] Loss_D: 0.00069236 (Loss_D_real: -0.00241976 Loss_D_fake: -0.00172740) Loss_G: -0.00176848 Loss_I: 1.11701405
+| epoch   3 | 10200/13866 batches | ms/batch 2192.81 | loss  1.10 | ppl     3.00 | acc     0.80
+[3/15][10299/13866] Loss_D: 0.00102881 (Loss_D_real: -0.00209258 Loss_D_fake: -0.00106377) Loss_G: -0.00152362 Loss_I: 1.34066260
+[3/15][10399/13866] Loss_D: 0.00051325 (Loss_D_real: -0.00195315 Loss_D_fake: -0.00143989) Loss_G: -0.00160034 Loss_I: 0.87037849
+| epoch   3 | 10400/13866 batches | ms/batch 2179.32 | loss  1.12 | ppl     3.07 | acc     0.84

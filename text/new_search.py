@@ -364,7 +364,11 @@ def eval_binary(model,data_source, epsilon, num_perturbations = 10):
     total_err = 0
     count = 0
     count2 =0 
+    count1 =0
+    count0 =0 
     correct = 0
+    correct1 =0
+    correct0 = 0
     for batch in data_source:
         premise, hypothesis, target, premise_words , hypothesis_words, lengths = batch
         premise = premise.cuda()
@@ -376,7 +380,7 @@ def eval_binary(model,data_source, epsilon, num_perturbations = 10):
         
         if args.code_space == True:
             for i in range(batch_size):
-                model.train()
+                model.eval()
                 prem = premise[i].unsqueeze(0)
                 hyp = hypothesis[i].unsqueeze(0)
                 targ = target[i]
@@ -402,9 +406,11 @@ def eval_binary(model,data_source, epsilon, num_perturbations = 10):
                 count2 += num_perturbations
                 y_pred_max, y_pred_argmax = torch.max(preds, dim = 1)
                 correct += (y_pred_argmax.data == labels.data).sum()
-                
-        
-        return count2, total_err/count, correct / count2
+                correct1 += (y_pred_argmax.data[labels.data == 1] == labels.data[labels.data == 1]).sum()
+                correct0 += (y_pred_argmax.data[labels.data == 0] == labels.data[labels.data == 0]).sum()                
+                count1 += (labels.data == 1).sum()
+                count0 += (labels.data == 0).sum()
+    return count2, total_err/count, correct / count2, correct1/count1, correct0/count0
 
 def train_binary(model,data_source, epsilon, num_perturbations = 10):
     '''
@@ -455,11 +461,14 @@ def train_binary(model,data_source, epsilon, num_perturbations = 10):
                 optimizer.step()
                 counter += 1
                 if counter %100 == 0:
-                    cnt,loss ,acc = eval_binary(model, test_data2, epsilon,3)
+                    cnt,loss ,acc,acc1,acc0 = eval_binary(model, test_data2, epsilon,2)
                     print("Count: ",cnt)
-                    print("Loss: ", loss)
+                    print("Loss: ", loss.cpu().numpy())
                     print("Accuracy: ",acc)
-                    print("Training Loss: ",t_loss/counter)
+                    print("Accuracy class 1",acc1)
+                    print("Accuracy class 0", acc0)
+                    print("Training Loss: ",(t_loss/counter).cpu().numpy())
+                    print(counter)
                 try:
                     x_adv1 = c_tilde[indices_adv1[0]]
                     x_adv2 = c_tilde[indices_adv2[0]]

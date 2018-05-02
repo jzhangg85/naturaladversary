@@ -372,10 +372,10 @@ class SNLIDataset(data.Dataset):
                 premise_words = premise_words[:self.maxlen]
                 hypothesis_words = hypothesis_words[:self.maxlen]
                 
-                if self.train:
-                    lines.append([premise_indices,hypothesis_indices, label])
-                else:
-                    lines.append([premise_indices,hypothesis_indices,label, premise_words,hypothesis_words, hypothesis_length])
+                #if self.train:
+                #    lines.append([premise_indices,hypothesis_indices, label])
+                #else:
+                lines.append([premise_indices,hypothesis_indices,label, premise_words,hypothesis_words, hypothesis_length])
 
         print("Number of sentences dropped from {}: {} out of {} total".
               format(path, dropped, linecount))

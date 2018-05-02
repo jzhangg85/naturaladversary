@@ -200,6 +200,7 @@ corpus = Corpus(args.data_path,maxlen=args.maxlen,vocab_size=args.vocab_size,low
 eval_batch_size = 10
 train_data = batchify(corpus.train, args.batch_size, args.maxlen, packed_rep=args.packed_rep, shuffle=True)
 test_data = batchify(corpus.test, eval_batch_size, args.maxlen, shuffle=False)
+
 ntokens = len(corpus.dictionary.word2idx)
 
 
@@ -207,7 +208,9 @@ ntokens = len(corpus.dictionary.word2idx)
 corpus_test = SNLIDataset(path = args.snli_path, train=False, vocab_size=args.vocab_size+4, reset_vocab=corpus.dictionary.word2idx)
 testloader = torch.utils.data.DataLoader(corpus_test, batch_size=10, collate_fn=collate_snli, shuffle=False)
 test_data2 = iter(testloader)
-
+corpus_train = SNLIDataset(path = args.snli_path, train=True, vocab_size=args.vocab_size+4, reset_vocab=corpus.dictionary.word2idx)
+trainloader = torch.utils.data.DataLoader(corpus_train, batch_size=args.batch_size, collate_fn=collate_snli, shuffle= True)
+train_data2 = iter(trainloader)
 print("Loaded data!")
 
 ################################################################
@@ -350,7 +353,58 @@ def pred_fn(data):
     _, predictions2 = torch.max(prob_distrib2, 1)
     return predictions1, predictions2, words_all
 
+def eval_binary(model,data_source, epsilon, num_perturbations = 10):
+    '''
+    training function for binary classifier
+    '''
+    gan_gen.eval()
+    inverter.eval()
+    autoencoder.eval()
+    criterion = nn.CrossEntropyLoss()
+    total_err = 0
+    count = 0
+    count2 =0 
+    correct = 0
+    for batch in data_source:
+        premise, hypothesis, target, premise_words , hypothesis_words, lengths = batch
+        premise = premise.cuda()
+        hypothesis = hypothesis.cuda()
+        target = target.cuda()
+        c = autoencoder.encode(hypothesis, lengths, noise=False)
+        z = inverter(c)
+        batch_size = premise.size(0)
+        
+        if args.code_space == True:
+            for i in range(batch_size):
+                model.train()
+                prem = premise[i].unsqueeze(0)
+                hyp = hypothesis[i].unsqueeze(0)
+                targ = target[i]
+                c_i = c[i].view(1,300)
+                d = np.random.rand(num_perturbations)
+                delta_c = np.random.randn(num_perturbations, c_i.shape[1])
+                norm_2 = np.linalg.norm(delta_c, ord=2, axis=1)
+                perturbation = Variable(torch.FloatTensor(epsilon*np.divide(delta_c.T,norm_2).T)).cuda()
+                c_tilde = c_i + Variable(torch.FloatTensor(epsilon*np.divide(delta_c.T,norm_2).T)).cuda()
+                y_tilde1, y_tilde2, all_adv = pred_fn((prem, hyp, c_tilde, d))
+                indices_adv1 = np.where(y_tilde1.data.cpu().numpy() != targ.data.cpu().numpy())[0]
+                indices_adv2 = np.where(y_tilde2.data.cpu().numpy() != targ.data.cpu().numpy())[0]
 
+                labels = np.zeros(num_perturbations)
+                labels[indices_adv2] += 1
+                labels = Variable(torch.LongTensor(labels),requires_grad = False).cuda()
+                a = c_i.expand(num_perturbations,300).detach()
+                feature = torch.cat((a,perturbation),dim = 1)
+                preds = model(feature)
+                err = criterion(preds,labels)
+                total_err += err.data
+                count += 1
+                count2 += num_perturbations
+                y_pred_max, y_pred_argmax = torch.max(preds, dim = 1)
+                correct += (y_pred_argmax.data == labels.data).sum()
+                
+        
+        return count2, total_err/count, correct / count2
 
 def train_binary(model,data_source, epsilon, num_perturbations = 10):
     '''
@@ -361,7 +415,8 @@ def train_binary(model,data_source, epsilon, num_perturbations = 10):
     autoencoder.eval()
     optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.CrossEntropyLoss()
-  
+    counter = 0
+    t_loss = 0
     for batch in data_source:
         premise, hypothesis, target, premise_words , hypothesis_words, lengths = batch    
         premise = premise.cuda()
@@ -370,6 +425,7 @@ def train_binary(model,data_source, epsilon, num_perturbations = 10):
         c = autoencoder.encode(hypothesis, lengths, noise=False)                 
         z = inverter(c)
         batch_size = premise.size(0)
+       
         if args.code_space == True:
             for i in range(batch_size):
                 optimizer.zero_grad()
@@ -394,10 +450,16 @@ def train_binary(model,data_source, epsilon, num_perturbations = 10):
                 feature = torch.cat((a,perturbation),dim = 1)
                 preds = model(feature)
                 err = criterion(preds,labels)
+                t_loss += err.data
                 err.backward()
                 optimizer.step()
-                if i == 0:
-                    print(err)
+                counter += 1
+                if counter %100 == 0:
+                    cnt,loss ,acc = eval_binary(model, test_data2, epsilon,3)
+                    print("Count: ",cnt)
+                    print("Loss: ", loss)
+                    print("Accuracy: ",acc)
+                    print("Training Loss: ",t_loss/counter)
                 try:
                     x_adv1 = c_tilde[indices_adv1[0]]
                     x_adv2 = c_tilde[indices_adv2[0]]
@@ -413,7 +475,7 @@ def train_binary(model,data_source, epsilon, num_perturbations = 10):
                     #print(words1)
                     #print(words2)
                 except:
-                    print("no adversary")
+                    pass
                
         elif args.code_space == False:
             for i in range(batch_size):
@@ -435,4 +497,4 @@ def train_binary(model,data_source, epsilon, num_perturbations = 10):
 
 print(model_args)
 model = BinaryClassifier().cuda()
-train_binary(model, test_data2,.0001,100)
+train_binary(model, train_data2,.0001,100)

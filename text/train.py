@@ -125,7 +125,7 @@ parser.add_argument('--gan_clamp', type=float, default=0.01,
                     help='WGAN clamp')
 parser.add_argument('--convolution_enc', action='store_true', default=False,
                     help='use convolutions in encoder')
-parser.add_argument('--use_inv_ae', action='store_true', default=False,
+parser.add_argument('--use_inv_ae', action='store_true', default=True,
                     help='use encoder->inv->gen->dec')
 parser.add_argument('--update_base', action='store_true', default=False,
                     help='updating base models')
@@ -410,30 +410,30 @@ def pred_fn(data):
 def save_model(epoch=None):
   if not epoch and args.load_pretrained:
     with open(os.environ["DATA_PATH"]+'/arae/output/{0}/{1}/inverter_model.pt'.format(args.outf+"/models",epoch), 'wb') as f:
-      torch.save(inverter, f)
+      torch.save(inverter.state_dict(), f)
     return
   if epoch and epoch%5==0:
     print("Saving models")
     if not os.path.isdir(os.environ["DATA_PATH"]+'/arae/output/{}'.format(epoch)):
       os.makedirs(os.environ["DATA_PATH"]+'/arae/output/{0}/{1}'.format(args.outf+"/models",epoch))
     with open(os.environ["DATA_PATH"]+'/arae/output/{0}/{1}/autoencoder_model.pt'.format(args.outf+"/models",epoch), 'wb') as f:
-      torch.save(autoencoder, f)
+      torch.save(autoencoder.state_dict(), f)
     with open(os.environ["DATA_PATH"]+'/arae/output/{0}/{1}/inverter_model.pt'.format(args.outf+"/models",epoch), 'wb') as f:
-      torch.save(inverter, f)
+      torch.save(inverter.state_dict(), f)
     with open(os.environ["DATA_PATH"]+'/arae/output/{0}/{1}/gan_gen_model.pt'.format(args.outf+"/models",epoch), 'wb') as f:
-      torch.save(gan_gen, f)
+      torch.save(gan_gen.state_dict(), f)
     with open(os.environ["DATA_PATH"]+'/arae/output/{0}/{1}/gan_disc_model.pt'.format(args.outf+"/models",epoch), 'wb') as f:
-      torch.save(gan_disc, f)
+      torch.save(gan_disc.state_dict(), f)
   else:
     print("Saving models")
     with open(os.environ["DATA_PATH"]+'/arae/output/{0}/autoencoder_model.pt'.format(args.outf+"/models"), 'wb') as f:
-      torch.save(autoencoder, f)
+      torch.save(autoencoder.state_dict(), f)
     with open(os.environ["DATA_PATH"]+'/arae/output/{0}/inverter_model.pt'.format(args.outf+"/models"), 'wb') as f:
-      torch.save(inverter, f)
+      torch.save(inverter.state_dict(), f)
     with open(os.environ["DATA_PATH"]+'/arae/output/{0}/gan_gen_model.pt'.format(args.outf+"/models"), 'wb') as f:
-      torch.save(gan_gen, f)
+      torch.save(gan_gen.state_dict(), f)
     with open(os.environ["DATA_PATH"]+'/arae/output/{0}/gan_disc_model.pt'.format(args.outf+"/models"), 'wb') as f:
-      torch.save(gan_disc, f)
+      torch.save(gan_disc.state_dict(), f)
 
 
 def evaluate_autoencoder(data_source, epoch):
@@ -715,7 +715,7 @@ def train_ae(batch, total_loss_ae, start_time, i):
               .format(epoch, i, len(train_data),
                       elapsed * 1000 / args.log_interval,
                       cur_loss, math.exp(cur_loss), accuracy))
-
+        sys.stdout.flush()
         with open(os.environ["DATA_PATH"]+"/arae/output/{}/logs.txt".format(args.outf), 'a') as f:
             f.write('| epoch {:3d} | {:5d}/{:5d} batches | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f} | acc {:8.2f}\n'.

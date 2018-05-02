@@ -616,17 +616,38 @@ def load_models(load_path):
     model_args = json.load(open("{}/args.json".format(load_path), "r"))
     word2idx = json.load(open("{}/vocab.json".format(load_path), "r"))
     idx2word = {v: k for k, v in word2idx.items()}
-
+     
     print('Loading models from' + load_path+"/models")
+    autoencoder = Seq2SeqCAE(emsize=model_args['emsize'],
+                              nhidden=model_args['nhidden'],
+                              ntokens=model_args['ntokens'],
+                              nlayers=model_args['nlayers'],
+                              noise_radius=model_args['noise_radius'],
+                              hidden_init=model_args['hidden_init'],
+                              dropout=model_args['dropout'],
+                              conv_layer=model_args['arch_conv_filters'],
+                              conv_windows=model_args['arch_conv_windows'],
+                              conv_strides=model_args['arch_conv_strides'],
+                              gpu=model_args['cuda'])
+    
+    gan_gen = MLP_G(ninput=model_args['z_size'],
+                    noutput=model_args['nhidden'],
+                    layers=model_args['arch_g'])
+    gan_disc = MLP_D(ninput=model_args['nhidden'],
+                     noutput=1,
+                     layers=model_args['arch_d'])
+    inverter = MLP_I_AE(ninput= model_args['nhidden'], noutput=model_args['z_size'], layers=model_args['arch_i'])
+
     ae_path = os.path.join(load_path+"/models/", "autoencoder_model.pt")
     inv_path = os.path.join(load_path+"/models/", "inverter_model.pt")
     gen_path = os.path.join(load_path+"/models/", "gan_gen_model.pt")
     disc_path = os.path.join(load_path+"/models/", "gan_disc_model.pt")
 
-    autoencoder = torch.load(ae_path)
-    inverter = torch.load(inv_path)
-    gan_gen = torch.load(gen_path)
-    gan_disc = torch.load(disc_path)
+    autoencoder.load_state_dict(torch.load(ae_path))
+    gan_gen.load_state_dict(torch.load(gen_path))
+    gan_disc.load_state_dict(torch.load(disc_path))
+    inverter.load_state_dict(torch.load(inv_path))    
+
     return model_args, idx2word, autoencoder, inverter, gan_gen, gan_disc
 
 

@@ -286,8 +286,9 @@ else:
     gan_gen = MLP_G(ninput=args.z_size, noutput=args.nhidden, layers=args.arch_g)
     gan_disc = MLP_D(ninput=args.nhidden, noutput=1, layers=args.arch_d)
     # dumping vocabulary
-    with open(os.environ["DATA_PATH"]+'/arae/output/{}/vocab.json'.format(args.outf), 'w', encoding='utf8') as f:
-        json.dumps(corpus.dictionary.word2idx, f, ensure_ascii=False)
+    
+    with open(os.environ["DATA_PATH"]+'/arae/output/{}/vocab.json'.format(args.outf), 'w') as f:
+        json.dump(corpus.dictionary.word2idx, f)
 
 
 if os.path.exists(os.environ["DATA_PATH"]+'/arae/output/{}/args.json'.format(args.outf)):

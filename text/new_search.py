@@ -16,6 +16,7 @@ from search import search, search_fast
 from utils import to_gpu, Corpus, batchify, SNLIDataset, train_ngram_lm, get_ppl, load_ngram_lm, get_delta, collate_snli
 from models import Seq2Seq, MLP_D, MLP_G, MLP_I, MLP_I_AE, JSDistance, Seq2SeqCAE, Baseline_Embeddings, Baseline_LSTM
 
+from models import load_models
 
 parser = argparse.ArgumentParser(description='Model Based Search methods for generating adversaries')
 
@@ -184,7 +185,6 @@ classifier2.load_state_dict(torch.load(args.classifier_path+"/baseline/model_lst
 
 vocab_classifier1 = pkl.load(open(args.classifier_path+"/vocab.pkl", 'rb'))
 vocab_classifier2 = pkl.load(open(args.classifier_path+"/vocab.pkl", 'rb'))
-ntokens = len(corpus.dictionary.word2idx)
 start_epoch = 1
 
 if args.cuda:
@@ -198,11 +198,13 @@ if args.cuda:
 
 corpus = Corpus(args.data_path,maxlen=args.maxlen,vocab_size=args.vocab_size,lowercase=args.lowercase)
 eval_batch_size = 10
-test_data = batchify(corpus.test, eval_batch_size, shuffle=False)
-train_data = batchify(corpus.train, args.batch_size, shuffle=True)
+train_data = batchify(corpus.train, args.batch_size, args.maxlen, packed_rep=args.packed_rep, shuffle=True)
+test_data = batchify(corpus.test, eval_batch_size, args.maxlen, shuffle=False)
+ntokens = len(corpus.dictionary.word2idx)
+
 
 #SNLI test data - for use with the classifier 
-corpus_test = SNLIDataset(path = args.snli_path, train=True, vocab_size=args.vocab_size+4, reset_vocab=corpus.dictionary.word2idx)
+corpus_test = SNLIDataset(path = args.snli_path, train=False, vocab_size=args.vocab_size+4, reset_vocab=corpus.dictionary.word2idx)
 testloader = torch.utils.data.DataLoader(corpus_test, batch_size=10, collate_fn=collate_snli, shuffle=False)
 test_data2 = iter(testloader)
 
@@ -265,13 +267,12 @@ class BinaryClassifier(nn.Module):
     1 - s,a is an adversarial pair
     0 - s,a is not an adversarial pair
     '''
-    def __init__(state_dim,action_dim, layers, vocab_size, activation=nn.ReLU(), gpu=True):
-        super(Q_function, self).__init__()
+    def __init__(self,state_dim=300,action_dim=300, layers = args.arch_d, activation=nn.ReLU(), gpu=True):
+        super(BinaryClassifier, self).__init__()
 
 
         #MLP for latent space code
         self.ninput = state_dim + action_dim
-        self.noutput= noutput
         layer_sizes = [self.ninput] + [int(x) for x in layers.split('-')]
         self.layers = []
 
@@ -287,7 +288,7 @@ class BinaryClassifier(nn.Module):
         self.layers.append(layer)
         self.add_module("layer"+str(len(self.layers)), layer)
 
-    def forward(self, state, action):
+    def forward(self, z):
         for layer in self.layers:
             z = layer(z)
         return(z)
@@ -350,61 +351,8 @@ def pred_fn(data):
     return predictions1, predictions2, words_all
 
 
-def perturb(data_source, epoch, corpus_test, hybrid=False):
-    # Turn on evaluation mode which disables dropout.
-    global gan_gen, autoencoder, inverter
-    gan_gen = gan_gen.cpu()
-    inverter = inverter.cpu()
-    autoencoder.eval()
-    autoencoder = autoencoder.cpu()
-    autoencoder.gpu = False
 
-    with open(os.environ["DATA_PATH"]+"/arae/output/%s/%s_perturbation.txt" % (args.outf, epoch),
-                  "a") as f:
-        for batch in data_source:
-            premise, hypothesis, target, premise_words , hypothesise_words, lengths = batch
-
-            c = autoencoder.encode(hypothesis, lengths, noise=False)
-            z = inverter(c).data.cpu()
-
-            batch_size = premise.size(0)
-            for i in range(batch_size):
-                f.write("========================================================\n")
-                f.write(" ".join(hypothesise_words[i])+"\n")
-                if hybrid:
-                    x_adv1, x_adv2, d_adv1, d_adv2, all_adv = search(gan_gen, pred_fn, \
-                                (premise[i].unsqueeze(0), hypothesis[i].unsqueeze(0)), \
-                                target[i], z[i].view(1,100))
-                else:
-                    x_adv1, x_adv2, d_adv1, d_adv2, all_adv = search_fast(gan_gen, pred_fn, \
-                                (premise[i].unsqueeze(0), hypothesis[i].unsqueeze(0)), \
-                                target[i], z[i].view(1,100))
-
-                try:
-                    hyp_sample_idx1 = autoencoder.generate(x_adv1, 10, True).data.cpu().numpy()[0]
-                    hyp_sample_idx2 = autoencoder.generate(x_adv2, 10, True).data.cpu().numpy()[0]
-                    words1 = [corpus_test.dictionary.idx2word[x] for x in hyp_sample_idx1]
-                    words2 = [corpus_test.dictionary.idx2word[x] for x in hyp_sample_idx2]
-                    if "<eos>" in words1:
-                        words1 = words1[:words1.index("<eos>")]
-                    if "<eos>" in words2:
-                        words2 = words2[:words2.index("<eos>")]
-
-                    f.write("\n====================Adversary==========================\n")
-                    f.write("Classfier 1 => "+" ".join(words1)+"\t"+str(d_adv1)+"\n")
-                    f.write("Classfier 2 => "+" ".join(words2)+"\t"+str(d_adv2)+"\n")
-                    f.write("========================================================\n")
-                    f.write("\n".join(all_adv)+"\n")
-                    f.flush()
-                except Exception as e:
-                    print(e)
-                    print(premise_words)
-                    print(hypothesise_words)
-                    print("no adversary found for : \n {0} \n {1}\n\n".\
-                          format(" ".join(premise_words[i]), " ".join(hypothesise_words[i])))
-
-
-def train_binary(data_source, epoch, epsilon, model, num_perturbations = 10):
+def train_binary(model,data_source, epsilon, num_perturbations = 10):
     '''
     training function for binary classifier
     '''
@@ -415,29 +363,60 @@ def train_binary(data_source, epoch, epsilon, model, num_perturbations = 10):
     criterion = nn.CrossEntropyLoss()
   
     for batch in data_source:
-        premise, hypothesis, target, premise_words , hypothesise_words, lengths = batch    
-        c = autoencoder.encode(hypothesis, lengths, noise=False)
+        premise, hypothesis, target, premise_words , hypothesis_words, lengths = batch    
+        premise = premise.cuda()
+        hypothesis = hypothesis.cuda()
+        target = target.cuda()
+        c = autoencoder.encode(hypothesis, lengths, noise=False)                 
         z = inverter(c)
-        
-        indices_adv1 = np.where(y_tilde1.data.cpu().numpy() != y.data.cpu().numpy())[0]
-        indices_adv2 = np.where(y_tilde2.data.cpu().numpy() != y.data.cpu().numpy())[0]          
         batch_size = premise.size(0)
         if args.code_space == True:
             for i in range(batch_size):
+                optimizer.zero_grad()
+                model.train()
                 prem = premise[i].unsqueeze(0)
                 hyp = hypothesis[i].unsqueeze(0)
                 targ = target[i]
-                c_i = c[i].view(1,100)
-                delta_c = np.random.randn(num_perturbations, c.shape[1])
+                c_i = c[i].view(1,300)
+                d = np.random.rand(num_perturbations)
+                delta_c = np.random.randn(num_perturbations, c_i.shape[1])
                 norm_2 = np.linalg.norm(delta_c, ord=2, axis=1)
-                c_tilde = c + epsilon*np.divide(delta_c,norm_2)
+                perturbation = Variable(torch.FloatTensor(epsilon*np.divide(delta_c.T,norm_2).T)).cuda()
+                c_tilde = c_i + Variable(torch.FloatTensor(epsilon*np.divide(delta_c.T,norm_2).T)).cuda()
                 y_tilde1, y_tilde2, all_adv = pred_fn((prem, hyp, c_tilde, d))
                 indices_adv1 = np.where(y_tilde1.data.cpu().numpy() != targ.data.cpu().numpy())[0]
                 indices_adv2 = np.where(y_tilde2.data.cpu().numpy() != targ.data.cpu().numpy())[0]
-                print(indices_adv1)
-                print(indices_adv2)
+                
+                labels = np.zeros(num_perturbations)
+                labels[indices_adv2] += 1
+                labels = Variable(torch.LongTensor(labels),requires_grad = False).cuda()
+                a = c_i.expand(num_perturbations,300).detach()
+                feature = torch.cat((a,perturbation),dim = 1)
+                preds = model(feature)
+                err = criterion(preds,labels)
+                err.backward()
+                optimizer.step()
+                if i == 0:
+                    print(err)
+                try:
+                    x_adv1 = c_tilde[indices_adv1[0]]
+                    x_adv2 = c_tilde[indices_adv2[0]]
+                    hyp_sample_idx1 = autoencoder.generate(x_adv1, 10, True).data.cpu().numpy()[0]
+                    hyp_sample_idx2 = autoencoder.generate(x_adv2, 10, True).data.cpu().numpy()[0]
+                    words1 = [corpus_test.dictionary.idx2word[x] for x in hyp_sample_idx1]
+                    words2 = [corpus_test.dictionary.idx2word[x] for x in hyp_sample_idx2]
+                    if "<eos>" in words1:
+                        words1 = words1[:words1.index("<eos>")]
+                    if "<eos>" in words2:
+                        words2 = words2[:words2.index("<eos>")]
+                    #print(hypothesis_words[i])
+                    #print(words1)
+                    #print(words2)
+                except:
+                    print("no adversary")
+               
         elif args.code_space == False:
-            for i in range(batch_size)
+            for i in range(batch_size):
                 prem = premise[i].unsqueeze(0)
                 hyp = hypothesis[i].unsqueeze(0)
                 targ = target[i]
@@ -454,18 +433,6 @@ def train_binary(data_source, epoch, epsilon, model, num_perturbations = 10):
                                   
                         
 
-
-def reward(s,a,label):
-    '''
-    basically pseudocode
-    ** shape an informative reward here
-    ** 
-    '''
-
-    new_z = s+a
-    new_code = generator(new_z)
-    new_sentence = autoencoder.decode(new_code)
-    return -1* classifier(new_sentence)[label]
-
-model = BinaryClassifier(...)
-train_binary(...)
+print(model_args)
+model = BinaryClassifier().cuda()
+train_binary(model, test_data2,.0001,100)

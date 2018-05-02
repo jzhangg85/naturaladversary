@@ -616,11 +616,11 @@ def load_models(load_path):
     model_args = json.load(open("{}/args.json".format(load_path), "r"))
     word2idx = json.load(open("{}/vocab.json".format(load_path), "r"))
     idx2word = {v: k for k, v in word2idx.items()}
-     
+    ntokens = len(word2idx)
     print('Loading models from' + load_path+"/models")
     autoencoder = Seq2SeqCAE(emsize=model_args['emsize'],
                               nhidden=model_args['nhidden'],
-                              ntokens=model_args['ntokens'],
+                              ntokens=ntokens,
                               nlayers=model_args['nlayers'],
                               noise_radius=model_args['noise_radius'],
                               hidden_init=model_args['hidden_init'],

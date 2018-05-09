@@ -1,0 +1,156 @@
+Sentence generations:
+
+some men are wearing a blue shirts
+the men are wearing a helmet
+the men are wearing taking pictures .
+the kids are wearing a helmet .
+the kids are riding a bicycle and blue .
+some men are taking a picture
+some kids are wearing hats
+the kids are wearing a helmet
+some men are taking a picture outside .
+some men are wearing a helmet taking pictures .
+
+Sentence interpolations:
+
+two kids are holding some animals
+two kids are holding some animals
+two kids are holding some animals
+two kids are holding some animals
+two kids are taking pictures outside
+two kids are throwing some rocks
+two kids are throwing some flowers
+two kids are throwing some flowers
+
+some kids are riding wearing blue .
+some kids are wearing blue shirts .
+some kids are wearing blue shirts .
+some kids are wearing blue shirts .
+some kids are wearing blue shirts .
+some kids are wearing blue shirts .
+some kids are wearing blue shirts .
+some men are taking a picture .
+
+some men are wearing a construction vehicle .
+some men are wearing a construction vehicle .
+some men are wearing a construction vehicle .
+some men are wearing a helmet taking pictures .
+some men are wearing a helmet taking pictures .
+some men are wearing a helmet taking pictures .
+the women are wearing some hats
+the boys are wearing a helmet
+
+the women are taking a walk
+the women are taking a walk
+the kids are riding horses and a vehicle .
+the kids are riding horses and a vehicle .
+the kids are holding some animals .
+the kids are holding some animals .
+the kids are holding some animals .
+the kids are holding some animals .
+
+two kids are holding some friends .
+two kids are wearing a blue shirts .
+two kids are wearing a blue shirts
+the men are wearing some hats shirts
+the men are wearing some hats
+the men are taking some lunch
+the men are taking some lunch
+the men are taking some lunch
+
+
+Code Space interpolations:
+
+two kids are holding some animals
+two kids are holding some animals
+two kids are holding some animals
+two kids are taking pictures outside
+two kids are taking pictures outside
+two kids are taking pictures outside
+two kids are throwing some flowers
+two kids are throwing some flowers
+
+some kids are riding wearing blue .
+some kids are wearing blue shirts .
+some kids are wearing blue shirts .
+some kids are wearing blue shirts .
+some kids are wearing blue shirts .
+some kids are wearing blue shirts .
+some kids are wearing blue shirts .
+some men are taking a picture .
+
+some men are wearing a construction vehicle .
+some men are wearing a construction vehicle .
+some men are wearing a construction vehicle .
+some men are wearing a helmet taking pictures .
+some men are wearing a helmet taking pictures .
+some men are wearing a helmet taking pictures .
+the women are wearing a helmet taking pictures .
+the boys are wearing a helmet
+
+the women are taking a walk
+the women are taking a walk
+the kids are holding some animals .
+the kids are holding some animals .
+the kids are holding some animals .
+the kids are holding some animals .
+the kids are holding some animals .
+the kids are holding some animals .
+
+two kids are holding some friends .
+two kids are holding some friends .
+two kids are wearing a blue hat .
+the women are wearing some hats
+the men are taking some lunch
+the men are taking some lunch
+the men are taking some lunch
+the men are taking some lunch
+
+
+Real Sentence interpolations:
+
+she was talking to her family .
+she is reading to get in the picture .
+a girl is next to another on the beach
+a girl is laying next to a tree .
+a girl is laying down to a blanket .
+a female is laying out of a restaurant .
+a female is laying down for a walk .
+a female swimmer is laying down a slide .
+
+the surfer is lying on the ground .
+the surfer is alone on the wave .
+the surfer is alone on the grass .
+the surfer is alone on the grass .
+the swimmer is jumping in the air .
+a <oov> is walking in a forest .
+a <oov> is skiing in the water
+a <oov> and is riding in a truck .
+
+two girls are talking to each other .
+two girls are sitting talking to men .
+two children are sitting with their eyes .
+a person is sitting with his daughter .
+a man is sitting in his office .
+a man is in the middle of snow .
+a man is in his office doing a trick
+a man is in his office doing a stunt
+
+the man is waiting for someone .
+the man is waiting for someone .
+the man is waiting for someone .
+<oov> is <oov> about a jump .
+<oov> is fixing it a sunny day .
+<oov> is fixing a new york .
+<oov> is selling a fruit stand .
+<oov> is painting a mural .
+
+there are cars on the highway .
+there are humans on the building .
+there are humans on the water .
+there are people standing on the beach .
+a man is standing in the street .
+a man standing outside
+a man standing outside
+a man standing outside
+

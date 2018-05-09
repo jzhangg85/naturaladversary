@@ -207,17 +207,17 @@ ntokens = len(corpus.dictionary.word2idx)
 #SNLI test data - for use with the classifier 
 corpus_test = SNLIDataset(path = args.snli_path, train=False, vocab_size=args.vocab_size+4, reset_vocab=corpus.dictionary.word2idx)
 testloader = torch.utils.data.DataLoader(corpus_test, batch_size=10, collate_fn=collate_snli, shuffle=False)
-test_data2 = iter(testloader)
+test_data2 = testloader
 corpus_train = SNLIDataset(path = args.snli_path, train=True, vocab_size=args.vocab_size+4, reset_vocab=corpus.dictionary.word2idx)
 trainloader = torch.utils.data.DataLoader(corpus_train, batch_size=args.batch_size, collate_fn=collate_snli, shuffle= True)
-train_data2 = iter(trainloader)
+train_data2 = trainloader
 print("Loaded data!")
 
 ################################################################
 #HYPER PARAMS
 ################################################################
 GAMMA = 0.1
-LEARNING_RATE = 1.0
+LEARNING_RATE = 0.01
 EPSILON = 0.1 #size of the search
 
 
@@ -276,7 +276,10 @@ class BinaryClassifier(nn.Module):
 
         #MLP for latent space code
         self.ninput = state_dim + action_dim
-        layer_sizes = [self.ninput] + [int(x) for x in layers.split('-')]
+        if layers == 'logreg':
+            layer_sizes = [self.ninput]
+        else:
+            layer_sizes = [self.ninput] + [int(x) for x in layers.split('-')]
         self.layers = []
 
         for i in range(len(layer_sizes)-1):
@@ -296,7 +299,41 @@ class BinaryClassifier(nn.Module):
             z = layer(z)
         return(z)
 
+class Direction(nn.Module):
+    '''
+    Only difference between this and Q is number of output is 2 
+    criterion should be CrossEntropyLoss
+    1 - s,a is an adversarial pair
+    0 - s,a is not an adversarial pair
+    '''
+    def __init__(self,state_dim=300, action_dim = 300, layers = args.arch_d, activation=nn.ReLU(), gpu=True):
+        super(Direction, self).__init__()
 
+
+        #MLP for latent space code
+        self.ninput = state_dim
+        if layers == 'logreg':
+            layer_sizes = [self.ninput]
+        else:
+            layer_sizes = [self.ninput] + [int(x) for x in layers.split('-')]
+        self.layers = []
+
+        for i in range(len(layer_sizes)-1):
+            layer = nn.Linear(layer_sizes[i], layer_sizes[i+1])
+            self.layers.append(layer)
+            self.add_module("layer"+str(i+1), layer)
+
+            # No batch normalization after first layer
+            self.layers.append(activation)
+            self.add_module("activation"+str(i+1), activation)
+        layer = nn.Linear(layer_sizes[-1], action_dim)
+        self.layers.append(layer)
+        self.add_module("layer"+str(len(self.layers)), layer)
+
+    def forward(self, z):
+        for layer in self.layers:
+            z = layer(z)
+        return(z)
 
 ####################################################################
 #Training code
@@ -304,6 +341,59 @@ class BinaryClassifier(nn.Module):
 
 ###############################################
 #Natural Adversarial Examples code
+
+def train_direction(model,data_source, epsilon):
+    gan_gen.eval()
+    inverter.eval()
+    autoencoder.eval()
+    optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE)
+    criterion = nn.CrossEntropyLoss()
+    counter = 0
+    t_loss = 0
+    for batch in data_source:
+        premise, hypothesis, target, premise_words , hypothesis_words, lengths = batch
+        premise = premise.cuda()
+        hypothesis = hypothesis.cuda()
+        target = target.cuda()
+        c = autoencoder.encode(hypothesis, lengths, noise=False)
+        z = inverter(c)
+        batch_size = premise.size(0)
+
+        
+        for i in range(batch_size):
+            optimizer.zero_grad()
+            model.train()
+            prem = premise[i].unsqueeze(0)
+            hyp = hypothesis[i].unsqueeze(0)
+            targ = target[i]
+            c_i = c[i].view(1,300)
+            d = np.random.rand(num_perturbations)
+            delta_c = np.random.randn(num_perturbations, c_i.shape[1])
+            norm_2 = np.linalg.norm(delta_c, ord=2, axis=1)
+            perturbation = Variable(torch.FloatTensor(epsilon*np.divide(delta_c.T,norm_2).T)).cuda()
+            c_tilde = c_i + Variable(torch.FloatTensor(epsilon*np.divide(delta_c.T,norm_2).T)).cuda()
+            c_prime = c_i.expand(num_perturbations,300)
+            y_tilde1, y_tilde2, all_adv = pred_fn((prem, hyp, c_tilde, d))
+
+            indices_adv1 = np.where(y_tilde1.data.cpu().numpy() != targ.data.cpu().numpy())[0]
+            indices_adv2 = np.where(y_tilde2.data.cpu().numpy() != targ.data.cpu().numpy())[0]
+
+            y_orig1, y_orig2,all_adv = pred_fn((prem,hyp,c_prime, d))
+            indices_orig1 = np.where(y_orig1.data.cpu().numpy() != targ.data.cpu().numpy())[0]
+            indices_orig2 = np.where(y_orig2.data.cpu().numpy() != targ.data.cpu().numpy())[0]
+            labels = np.zeros(num_perturbations)
+            labels[indices_adv2] += 1
+            labels = Variable(torch.LongTensor(labels),requires_grad = False).cuda()
+            a = c_i.expand(num_perturbations,300).detach()
+            feature = torch.cat((a,perturbation),dim = 1)
+            preds = model(feature)
+            err = criterion(preds,labels)
+            t_loss += err.data
+            err.backward()
+            optimizer.step()
+            counter += 1
+
+
 def pred_fn(data):
     gpu = args.cuda
     premise, hyp_indices, hypothesis_c, dist = data
@@ -369,6 +459,7 @@ def eval_binary(model,data_source, epsilon, num_perturbations = 10):
     correct = 0
     correct1 =0
     correct0 = 0
+    print('DATA SOURCE', len(data_source))
     for batch in data_source:
         premise, hypothesis, target, premise_words , hypothesis_words, lengths = batch
         premise = premise.cuda()
@@ -377,7 +468,7 @@ def eval_binary(model,data_source, epsilon, num_perturbations = 10):
         c = autoencoder.encode(hypothesis, lengths, noise=False)
         z = inverter(c)
         batch_size = premise.size(0)
-        
+        args.code_space == True
         if args.code_space == True:
             for i in range(batch_size):
                 model.eval()
@@ -388,12 +479,12 @@ def eval_binary(model,data_source, epsilon, num_perturbations = 10):
                 d = np.random.rand(num_perturbations)
                 delta_c = np.random.randn(num_perturbations, c_i.shape[1])
                 norm_2 = np.linalg.norm(delta_c, ord=2, axis=1)
-                perturbation = Variable(torch.FloatTensor(epsilon*np.divide(delta_c.T,norm_2).T)).cuda()
+                perturbation = Variable(torch.FloatTensor(100*np.divide(delta_c.T,norm_2).T)).cuda()
                 c_tilde = c_i + Variable(torch.FloatTensor(epsilon*np.divide(delta_c.T,norm_2).T)).cuda()
                 y_tilde1, y_tilde2, all_adv = pred_fn((prem, hyp, c_tilde, d))
                 indices_adv1 = np.where(y_tilde1.data.cpu().numpy() != targ.data.cpu().numpy())[0]
                 indices_adv2 = np.where(y_tilde2.data.cpu().numpy() != targ.data.cpu().numpy())[0]
-
+            
                 labels = np.zeros(num_perturbations)
                 labels[indices_adv2] += 1
                 labels = Variable(torch.LongTensor(labels),requires_grad = False).cuda()
@@ -407,9 +498,10 @@ def eval_binary(model,data_source, epsilon, num_perturbations = 10):
                 y_pred_max, y_pred_argmax = torch.max(preds, dim = 1)
                 correct += (y_pred_argmax.data == labels.data).sum()
                 correct1 += (y_pred_argmax.data[labels.data == 1] == labels.data[labels.data == 1]).sum()
-                correct0 += (y_pred_argmax.data[labels.data == 0] == labels.data[labels.data == 0]).sum()                
+                correct0 += (y_pred_argmax.data[labels.data == 0] == labels.data[labels.data == 0]).sum()
                 count1 += (labels.data == 1).sum()
                 count0 += (labels.data == 0).sum()
+     
     return count2, total_err/count, correct / count2, correct1/count1, correct0/count0
 
 def train_binary(model,data_source, epsilon, num_perturbations = 10):
@@ -445,10 +537,15 @@ def train_binary(model,data_source, epsilon, num_perturbations = 10):
                 norm_2 = np.linalg.norm(delta_c, ord=2, axis=1)
                 perturbation = Variable(torch.FloatTensor(epsilon*np.divide(delta_c.T,norm_2).T)).cuda()
                 c_tilde = c_i + Variable(torch.FloatTensor(epsilon*np.divide(delta_c.T,norm_2).T)).cuda()
+                c_prime = c_i.expand(num_perturbations,300)
                 y_tilde1, y_tilde2, all_adv = pred_fn((prem, hyp, c_tilde, d))
+                
                 indices_adv1 = np.where(y_tilde1.data.cpu().numpy() != targ.data.cpu().numpy())[0]
                 indices_adv2 = np.where(y_tilde2.data.cpu().numpy() != targ.data.cpu().numpy())[0]
-                
+     
+                y_orig1, y_orig2,all_adv = pred_fn((prem,hyp,c_prime, d))
+                indices_orig1 = np.where(y_orig1.data.cpu().numpy() != targ.data.cpu().numpy())[0]
+                indices_orig2 = np.where(y_orig2.data.cpu().numpy() != targ.data.cpu().numpy())[0] 
                 labels = np.zeros(num_perturbations)
                 labels[indices_adv2] += 1
                 labels = Variable(torch.LongTensor(labels),requires_grad = False).cuda()
@@ -460,7 +557,7 @@ def train_binary(model,data_source, epsilon, num_perturbations = 10):
                 err.backward()
                 optimizer.step()
                 counter += 1
-                if counter %100 == 0:
+                if counter %1000 == 0:
                     cnt,loss ,acc,acc1,acc0 = eval_binary(model, test_data2, epsilon,2)
                     print("Count: ",cnt)
                     print("Loss: ", loss.cpu().numpy())
@@ -469,22 +566,25 @@ def train_binary(model,data_source, epsilon, num_perturbations = 10):
                     print("Accuracy class 0", acc0)
                     print("Training Loss: ",(t_loss/counter).cpu().numpy())
                     print(counter)
-                try:
-                    x_adv1 = c_tilde[indices_adv1[0]]
-                    x_adv2 = c_tilde[indices_adv2[0]]
-                    hyp_sample_idx1 = autoencoder.generate(x_adv1, 10, True).data.cpu().numpy()[0]
-                    hyp_sample_idx2 = autoencoder.generate(x_adv2, 10, True).data.cpu().numpy()[0]
-                    words1 = [corpus_test.dictionary.idx2word[x] for x in hyp_sample_idx1]
-                    words2 = [corpus_test.dictionary.idx2word[x] for x in hyp_sample_idx2]
-                    if "<eos>" in words1:
-                        words1 = words1[:words1.index("<eos>")]
-                    if "<eos>" in words2:
-                        words2 = words2[:words2.index("<eos>")]
-                    #print(hypothesis_words[i])
-                    #print(words1)
-                    #print(words2)
-                except:
-                    pass
+         
+                    idx1 = np.array(list(set(indices_adv1).intersection(indices_orig1)))
+                    idx2 = np.array(list(set(indices_adv2).intersection(indices_orig2)))
+                    try:
+                        x_adv1 = c_tilde[idx1[0]]
+                        x_adv2 = c_tilde[idx2[0]]
+                        hyp_sample_idx1 = autoencoder.generate(x_adv1, 10, True).data.cpu().numpy()[0]
+                        hyp_sample_idx2 = autoencoder.generate(x_adv2, 10, True).data.cpu().numpy()[0]
+                        words1 = [corpus_test.dictionary.idx2word[x] for x in hyp_sample_idx1]
+                        words2 = [corpus_test.dictionary.idx2word[x] for x in hyp_sample_idx2]
+                        if "<eos>" in words1:
+                            words1 = words1[:words1.index("<eos>")]
+                        if "<eos>" in words2:
+                            words2 = words2[:words2.index("<eos>")]
+                        print("Hypothesis original ",hypothesis_words[i])
+                        print("Adversary 1: ", words1)
+                        print("Adversary 2: ", words2)
+                    except:
+                        pass
                
         elif args.code_space == False:
             for i in range(batch_size):
@@ -506,4 +606,4 @@ def train_binary(model,data_source, epsilon, num_perturbations = 10):
 
 print(model_args)
 model = BinaryClassifier().cuda()
-train_binary(model, train_data2,.0001,100)
+train_binary(model, train_data2,.01,5)

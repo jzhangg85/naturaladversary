@@ -7,3 +7,5 @@ https://drive.google.com/file/d/1E1Q5FHf1mUZsz7gPCUDNPsN-ZHKDxaNS/view?usp=shari
 
 3. To train inverter, 
 python3 train.py --data_path <path_to_data_folder> --update_base --convolution_enc -classifier_path <path_to_data_folder>/classifier
+
+Paraprhase code is on Jesse Zhang's machine - had some chronic issues with pushing to git. 
